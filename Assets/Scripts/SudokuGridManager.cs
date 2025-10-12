@@ -1,21 +1,26 @@
 using UnityEngine;
 using TMPro;
 using UnityEngine.UI;
+using System.Collections.Generic;
 
 public class SudokuGridManager : MonoBehaviour
 {
     [Header("Prefab and Grid")]
-    public GameObject cellPrefab; 
+    public GameObject cellPrefab;
     public int gridSize = 9;
 
-    private TMP_InputField[,] grid; 
+    private TMP_InputField[,] grid;
+
+    public enum Difficulty { Easy, Medium, Hard }
+    public Difficulty currentDifficulty = Difficulty.Easy;
 
     void Start()
     {
         GenerateGrid();
-        GenerateRandomPuzzleUnvalidated(15); // coloca 15 números aleatorios
+        GeneratePuzzleByDifficulty(); // coloca números iniciales según dificultad
     }
 
+    // ===== GENERACIÓN DE GRID =====
     void GenerateGrid()
     {
         grid = new TMP_InputField[gridSize, gridSize];
@@ -67,7 +72,7 @@ public class SudokuGridManager : MonoBehaviour
     {
         Image bg = input.GetComponent<Image>();
         if (bg != null)
-            bg.color = valid ? Color.white : new Color(1f, 0.4f, 0.4f);
+            bg.color = valid ? Color.white : new Color(1f, 0.4f, 0.4f); // rojo si hay conflicto
     }
 
     bool IsValidPlacement(int number, int row, int col)
@@ -100,6 +105,44 @@ public class SudokuGridManager : MonoBehaviour
         return true;
     }
 
+    // ===== RESALTAR CONFLICTOS =====
+    public void HighlightConflicts()
+    {
+        for (int r = 0; r < gridSize; r++)
+        {
+            for (int c = 0; c < gridSize; c++)
+            {
+                string t = grid[r, c].text;
+                if (!string.IsNullOrEmpty(t) && int.TryParse(t, out int number))
+                {
+                    bool valid = IsValidPlacement(number, r, c);
+                    Image bg = grid[r, c].GetComponent<Image>();
+                    if (bg != null)
+                        bg.color = valid ? Color.white : Color.yellow; // amarillo para conflicto
+                }
+            }
+        }
+    }
+
+    // ===== HILL CLIMBING =====
+    public void SolveWithHillClimbing()
+    {
+        int[,] currentBoard = GetCurrentBoard();
+        SudokuSolverHillClimbing solver = new SudokuSolverHillClimbing(
+            currentBoard,
+            (r, c, value) => // callback solo para celdas modificadas
+            {
+                grid[r, c].text = value.ToString();
+                Image bg = grid[r, c].GetComponent<Image>();
+                if (bg != null)
+                    bg.color = new Color(0.4f, 0.6f, 1f); // azul claro
+            }
+        );
+
+        solver.Solve();
+    }
+
+    // ===== MÉTODOS DE TABLERO =====
     public void FillInitialBoard(int[,] board)
     {
         for (int r = 0; r < gridSize; r++)
@@ -129,7 +172,14 @@ public class SudokuGridManager : MonoBehaviour
         return board;
     }
 
-    // ---------------- Genera tablero aleatorio con N números ----------------
+    public void UpdateBoardVisual(int[,] board)
+    {
+        for (int r = 0; r < gridSize; r++)
+            for (int c = 0; c < gridSize; c++)
+                grid[r, c].text = board[r, c] == 0 ? "" : board[r, c].ToString();
+    }
+
+    // ===== GENERACIÓN ALEATORIA =====
     public void GenerateRandomPuzzleUnvalidated(int numbersToPlace = 15)
     {
         int[,] board = new int[gridSize, gridSize];
@@ -149,15 +199,57 @@ public class SudokuGridManager : MonoBehaviour
 
         FillInitialBoard(board);
     }
-    public void SolveWithHillClimbing()
+    public void ClearGrid()
     {
-        int[,] currentBoard = GetCurrentBoard();
-        HillClimber climber = new HillClimber(currentBoard);
-        int[,] solved = climber.Solve();
-        
-        // Actualizar UI
         for (int r = 0; r < gridSize; r++)
+        {
             for (int c = 0; c < gridSize; c++)
-                grid[r,c].text = solved[r,c].ToString();
+            {
+                grid[r, c].text = "";
+                grid[r, c].interactable = true;
+                Image bg = grid[r, c].GetComponent<Image>();
+                if (bg != null)
+                    bg.color = Color.white; // color por defecto
+            }
+        }
+    }
+    // ===== DIFICULTAD =====
+    public void GeneratePuzzleByDifficulty()
+    {
+        ClearGrid();
+        int numbersToPlace = 15;
+
+        switch (currentDifficulty)
+        {
+            case Difficulty.Easy:
+                numbersToPlace = 25;
+                break;
+            case Difficulty.Medium:
+                numbersToPlace = 20;
+                break;
+            case Difficulty.Hard:
+                numbersToPlace = 15;
+                break;
+        }
+
+        GenerateRandomPuzzleUnvalidated(numbersToPlace);
+    }
+
+    public void SetDifficultyEasy()
+    {
+        currentDifficulty = Difficulty.Easy;
+        GeneratePuzzleByDifficulty();
+    }
+
+    public void SetDifficultyMedium()
+    {
+        currentDifficulty = Difficulty.Medium;
+        GeneratePuzzleByDifficulty();
+    }
+
+    public void SetDifficultyHard()
+    {
+        currentDifficulty = Difficulty.Hard;
+        GeneratePuzzleByDifficulty();
     }
 }
