@@ -30,11 +30,11 @@ public class SudokuSolverHillClimbing
         {
             iterations++;
 
-            // Elegir una celda ocupada aleatoria
+            // Elegir una celda ocupada
             var cell = filledCells[Random.Range(0, filledCells.Count)];
             int oldValue = board[cell.r, cell.c];
 
-            // Probar cambiar el número a otro distinto
+            // Prueba otro numero
             int newValue = Random.Range(1, 10);
             while (newValue == oldValue)
                 newValue = Random.Range(1, 10);
@@ -45,15 +45,14 @@ public class SudokuSolverHillClimbing
 
             if (newFitness < fitness)
             {
-                // Cambio aceptado: actualizar fitness y notificar al manager
+                // Cambia y actualiza el fitness
                 fitness = newFitness;
-                onCellChanged?.Invoke(cell.r, cell.c, newValue); // Solo estas celdas cambian de color
+                onCellChanged?.Invoke(cell.r, cell.c, newValue); // Solo cambia de color
             }
             else
             {
-                // Cambio rechazado: revertir
+                // no se aplica el cambio
                 board[cell.r, cell.c] = oldValue;
-                // NO llamar al callback
             }
         }
 
