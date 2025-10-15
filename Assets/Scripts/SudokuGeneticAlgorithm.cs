@@ -4,42 +4,20 @@ using System.Linq;
 
 public class SudokuGeneticAlgorithm : MonoBehaviour
 {
-    [Header("Referencias")]
-    public SudokuGridManager gridManager;      // Tu script de Sudoku
-    public PopulationDisplay populationUI;     // UI para mostrar la población
-
-    [Header("Parámetros GA")]
+    public SudokuGridManager gridManager;
     public int populationSize = 20;   // total tableros
     public int parentsCount = 10;     // tableros seleccionados
     public int generations = 10;      // número de iteraciones
 
-    private List<int[,]> population = new List<int[,]>(); // población actual
+    private List<int[,]> population = new List<int[,]>();
 
     void Start()
     {
-        // Intentar encontrar el SudokuGridManager si no está asignado
-        if (gridManager == null)
-        {
-            gridManager = FindObjectOfType<SudokuGridManager>();
-            if (gridManager == null)
-            {
-                Debug.LogError("No se pudo encontrar SudokuGridManager en la escena.");
-                return;
-            }
-        }
-        
-        // Esperar un frame para asegurar que gridManager esté completamente inicializado
-        Invoke("RunGA", 0.1f);
+        RunGA();
     }
 
     public void RunGA()
     {
-        if (gridManager == null)
-        {
-            Debug.LogError("SudokuGridManager es null. No se puede ejecutar el algoritmo genético.");
-            return;
-        }
-
         // 1️⃣ Generar población inicial
         GenerateInitialPopulation();
 
@@ -50,11 +28,7 @@ public class SudokuGeneticAlgorithm : MonoBehaviour
             // 2️⃣ Evaluar fitness
             List<float> fitnesses = population.Select(p => CalculateFitness(p)).ToList();
 
-            // Mostrar en UI
-            if (populationUI != null)
-                populationUI.ShowPopulation(population, fitnesses);
-
-            // 3️⃣ Selección de los mejores padres
+            // 3️⃣ Selección
             List<int[,]> parents = SelectTopParents(population, fitnesses, parentsCount);
 
             // 4️⃣ Mutación para crear descendencia
@@ -70,19 +44,18 @@ public class SudokuGeneticAlgorithm : MonoBehaviour
             population.AddRange(parents);
             population.AddRange(offspring);
 
-            // Mostrar mejor fitness en consola
+            // Mostrar mejor fitness
             int[,] best = population.OrderByDescending(p => CalculateFitness(p)).First();
             float bestFitness = CalculateFitness(best);
             Debug.Log($"Mejor fitness: {bestFitness}");
         }
 
-        // Mostrar el mejor tablero final en la UI del Sudoku
+        // Mostrar el mejor tablero final en la UI
         int[,] finalBest = population.OrderByDescending(p => CalculateFitness(p)).First();
         gridManager.ClearGrid();
         gridManager.FillInitialBoard(finalBest);
     }
 
-    // ================== Población Inicial ==================
     void GenerateInitialPopulation()
     {
         population.Clear();
@@ -113,10 +86,11 @@ public class SudokuGeneticAlgorithm : MonoBehaviour
         }
     }
 
-    // ================== Fitness ==================
     float CalculateFitness(int[,] board)
     {
-        // Fitness basado en dificultad usando Naked Single
+        // Fitness basado en dificultad con Naked → Hidden
+        // Usamos gridManager para validar números
+        // Simplicidad: contamos cuántas celdas NO se resuelven solo con Naked Single
         int unresolved = 0;
         for (int r = 0; r < 9; r++)
         {
@@ -133,10 +107,12 @@ public class SudokuGeneticAlgorithm : MonoBehaviour
                 }
             }
         }
-        return unresolved; // mayor valor = más difícil
+
+        // Fitness = número de celdas no resueltas solo con Naked Single
+        // Cuanto mayor, más difícil
+        return unresolved;
     }
 
-    // ================== Selección ==================
     List<int[,]> SelectTopParents(List<int[,]> pop, List<float> fitnesses, int count)
     {
         return pop.Zip(fitnesses, (p, f) => new { board = p, fitness = f })
