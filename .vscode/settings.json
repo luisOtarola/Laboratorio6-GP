@@ -56,5 +56,6 @@
         "temp/": true,
         "Temp/": true
     },
-    "dotnet.defaultSolution": "Laboratorio6-GP.sln"
+    "dotnet.defaultSolution": "Laboratorio6-GP.sln",
+    "dotnet.debug.suppressInvalidDebugTypeWarning": true
 }
