@@ -10,6 +10,7 @@ public class SudokuGridManager : MonoBehaviour
     public int gridSize = 9;
 
     private TMP_InputField[,] grid;
+    public bool IsReady => grid != null;
 
     public enum Difficulty { Easy, Medium, Hard }
     public Difficulty currentDifficulty = Difficulty.Easy;
@@ -102,6 +103,11 @@ public class SudokuGridManager : MonoBehaviour
     // ================== COLOREAR CONFLICTOS ==================
     public void HighlightConflicts()
     {
+        if (grid == null)
+        {
+            Debug.LogWarning("HighlightConflicts: grid no inicializado.");
+            return;
+        }
         int[,] board = GetCurrentBoard();
 
         for (int r = 0; r < gridSize; r++)
@@ -123,6 +129,11 @@ public class SudokuGridManager : MonoBehaviour
     // ================== HILL CLIMBING (RESOLVER) ==================
     public void SolveWithHillClimbing()
     {
+        if (grid == null)
+        {
+            Debug.LogWarning("SolveWithHillClimbing: grid no inicializado.");
+            return;
+        }
         int[,] currentBoard = GetCurrentBoard();
         SudokuSolverHillClimbing solver = new SudokuSolverHillClimbing(
             currentBoard,
@@ -140,6 +151,11 @@ public class SudokuGridManager : MonoBehaviour
     // ================== MÉTODOS DE TABLERO ==================
     public void FillInitialBoard(int[,] board)
     {
+        if (grid == null)
+        {
+            Debug.LogWarning("FillInitialBoard: grid no inicializado todavía.");
+            return;
+       }
         for (int r = 0; r < gridSize; r++)
         {
             for (int c = 0; c < gridSize; c++)
@@ -172,6 +188,8 @@ public class SudokuGridManager : MonoBehaviour
 
     public void ClearGrid()
     {
+        if (grid == null) return; // proteger contra NullReference si se llama antes de GenerateGrid
+
         for (int r = 0; r < gridSize; r++)
         {
             for (int c = 0; c < gridSize; c++)
