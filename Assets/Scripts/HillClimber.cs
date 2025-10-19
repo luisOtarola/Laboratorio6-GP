@@ -1,102 +1,214 @@
 using System.Collections.Generic;
 using UnityEngine;
-using System;
-using Random = UnityEngine.Random;
-public class SudokuSolverHillClimbing
-{
-    private int gridSize = 9;
-    private int[,] board;
-    private Action<int, int, int> onCellChanged; // fila, columna, nuevo valor
+using TMPro;
 
-    public SudokuSolverHillClimbing(int[,] initialBoard, Action<int, int, int> onCellChangedCallback = null)
+public class HillClimbing : MonoBehaviour
+{
+    public SudokuGridManager gridManager;
+    public TMP_Text fitnessText;
+
+    private int[,] board;
+    private List<(int, int)> candidateCells;
+    private int currentIndex = 0;
+    private bool initialized = false;
+
+    void Start()
     {
-        gridSize = initialBoard.GetLength(0);
-        board = (int[,])initialBoard.Clone();
-        onCellChanged = onCellChangedCallback;
+        StartCoroutine(WaitForGridReady());
     }
 
-    public int[,] Solve(int maxIterations = 10000)
+    private System.Collections.IEnumerator WaitForGridReady()
     {
-        List<(int r, int c)> filledCells = new List<(int, int)>();
-        for (int r = 0; r < gridSize; r++)
-            for (int c = 0; c < gridSize; c++)
-                if (board[r, c] != 0)
-                    filledCells.Add((r, c));
+        yield return new WaitUntil(() => gridManager != null && gridManager.IsReady);
 
-        int fitness = CalculateConflicts(board);
-        int iterations = 0;
+        InitializeBoard();
+        initialized = true;
+        UpdateFitnessUI();
+    }
 
-        while (fitness > 0 && iterations < maxIterations)
+    private void InitializeBoard()
+    {
+        board = gridManager.GetCurrentBoard();
+        if (board == null)
         {
-            iterations++;
+            Debug.LogError("❌ HillClimbing: No se pudo obtener el tablero desde el gridManager.");
+            return;
+        }
 
-            // Elegir una celda ocupada aleatoria
-            var cell = filledCells[Random.Range(0, filledCells.Count)];
-            int oldValue = board[cell.r, cell.c];
+        // ✅ Ahora analizamos TODAS las celdas (rellenas y vacías)
+        candidateCells = GetAllCells(board);
+        currentIndex = 0;
 
-            // Probar cambiar el número a otro distinto
-            int newValue = Random.Range(1, 10);
-            while (newValue == oldValue)
-                newValue = Random.Range(1, 10);
+        Debug.Log($"✅ HillClimbing inicializado con {candidateCells.Count} celdas a analizar.");
+    }
 
-            board[cell.r, cell.c] = newValue;
+    public void StepHillClimbing()
+    {
+        if (!initialized)
+        {
+            Debug.LogWarning("⚠️ HillClimbing aún no está inicializado.");
+            return;
+        }
 
-            int newFitness = CalculateConflicts(board);
+        if (candidateCells == null || candidateCells.Count == 0)
+        {
+            Debug.LogWarning("⚠️ No hay celdas disponibles para analizar.");
+            return;
+        }
 
-            if (newFitness < fitness)
+        if (currentIndex >= candidateCells.Count)
+        {
+            Debug.Log("✅ Hill Climbing completado: no quedan celdas para mejorar.");
+            return;
+        }
+
+        var cell = candidateCells[currentIndex];
+        int row = cell.Item1;
+        int col = cell.Item2;
+
+        float currentFitness = CalculateFitness(board);
+        bool improved = false;
+
+        var neighbors = GetNeighbors(row, col);
+        foreach (var n in neighbors)
+        {
+            int nr = n.Item1;
+            int nc = n.Item2;
+
+            // ✅ Permitir swaps con cualquier vecino (vacío o no)
+            SwapCells(row, col, nr, nc);
+            float newFitness = CalculateFitness(board);
+
+            if (newFitness < currentFitness)
             {
-                // Cambio aceptado: actualizar fitness y notificar al manager
-                fitness = newFitness;
-                onCellChanged?.Invoke(cell.r, cell.c, newValue); // Solo estas celdas cambian de color
+                improved = true;
+                Debug.Log($"✨ Mejora encontrada: ({row},{col}) ↔ ({nr},{nc}) | {currentFitness} → {newFitness}");
+                currentFitness = newFitness;
+                break;
             }
             else
             {
-                // Cambio rechazado: revertir
-                board[cell.r, cell.c] = oldValue;
-                // NO llamar al callback
+                // revertir si no mejora
+                SwapCells(row, col, nr, nc);
             }
         }
 
-        Debug.Log("Hill Climbing terminado en " + iterations + " iteraciones. Conflictos = " + fitness);
-        return board;
+        if (!improved)
+            currentIndex++;
+
+        // Actualizar visualmente
+        gridManager.ClearGrid();
+        gridManager.FillInitialBoard(board);
+        UpdateFitnessUI();
     }
 
-    private int CalculateConflicts(int[,] board)
+    float CalculateFitness(int[,] board)
     {
-        int conflicts = 0;
+        int[,] tempBoard = (int[,])board.Clone();
+        bool progress = true;
 
-        // Filas
-        for (int r = 0; r < gridSize; r++)
+        // Naked y Hidden Singles
+        while (progress)
         {
-            int[] count = new int[10];
-            for (int c = 0; c < gridSize; c++)
-                if (board[r, c] != 0) count[board[r, c]]++;
-            for (int i = 1; i <= 9; i++)
-                if (count[i] > 1) conflicts += count[i] - 1;
-        }
-
-        // Columnas
-        for (int c = 0; c < gridSize; c++)
-        {
-            int[] count = new int[10];
-            for (int r = 0; r < gridSize; r++)
-                if (board[r, c] != 0) count[board[r, c]]++;
-            for (int i = 1; i <= 9; i++)
-                if (count[i] > 1) conflicts += count[i] - 1;
-        }
-
-        // Bloques 3x3
-        for (int br = 0; br < gridSize; br += 3)
-            for (int bc = 0; bc < gridSize; bc += 3)
+            progress = false;
+            for (int r = 0; r < 9; r++)
             {
-                int[] count = new int[10];
-                for (int r = br; r < br + 3; r++)
-                    for (int c = bc; c < bc + 3; c++)
-                        if (board[r, c] != 0) count[board[r, c]]++;
-                for (int i = 1; i <= 9; i++)
-                    if (count[i] > 1) conflicts += count[i] - 1;
-            }
+                for (int c = 0; c < 9; c++)
+                {
+                    if (tempBoard[r, c] == 0)
+                    {
+                        List<int> candidates = new List<int>();
+                        for (int n = 1; n <= 9; n++)
+                            if (gridManager.IsValidPlacement(tempBoard, n, r, c))
+                                candidates.Add(n);
 
-        return conflicts;
+                        if (candidates.Count == 1)
+                        {
+                            tempBoard[r, c] = candidates[0];
+                            progress = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fitness alto = más difícil (más celdas sin resolver)
+        int emptyCells = 0;
+        for (int r = 0; r < 9; r++)
+        {
+            for (int c = 0; c < 9; c++)
+            {
+                if (tempBoard[r, c] == 0)
+                {
+                    for (int n = 1; n <= 9; n++)
+                        if (gridManager.IsValidPlacement(tempBoard, n, r, c))
+                            emptyCells++;
+                }
+            }
+        }
+
+        return emptyCells;
+    }
+
+    List<(int, int)> GetAllCells(int[,] b)
+    {
+        List<(int, int)> cells = new List<(int, int)>();
+        for (int r = 0; r < 9; r++)
+            for (int c = 0; c < 9; c++)
+                cells.Add((r, c));
+        return cells;
+    }
+
+    List<(int, int)> GetNeighbors(int r, int c)
+    {
+        List<(int, int)> neighbors = new List<(int, int)>();
+        for (int dr = -1; dr <= 1; dr++)
+        {
+            for (int dc = -1; dc <= 1; dc++)
+            {
+                if (dr == 0 && dc == 0) continue;
+                int nr = r + dr;
+                int nc = c + dc;
+                if (nr >= 0 && nr < 9 && nc >= 0 && nc < 9)
+                    neighbors.Add((nr, nc));
+            }
+        }
+        return neighbors;
+    }
+
+    void SwapCells(int r1, int c1, int r2, int c2)
+    {
+        int temp = board[r1, c1];
+        board[r1, c1] = board[r2, c2];
+        board[r2, c2] = temp;
+    }
+
+    void UpdateFitnessUI()
+    {
+        if (fitnessText != null)
+        {
+            float f = CalculateFitness(board);
+            fitnessText.text = $"Fitness Actual: {f:F2}";
+        }
+        else
+        {
+            Debug.LogWarning(" No se asignó un TMP_Text a HillClimbing.");
+        }
+    }
+    public void RefreshBoardFromGrid()
+    {
+        board = gridManager.GetCurrentBoard();
+        if (board == null)
+        {
+            Debug.LogError(" HillClimbing: No se pudo obtener el nuevo tablero.");
+            return;
+        }
+
+        candidateCells = GetAllCells(board);
+        currentIndex = 0;
+        initialized = true;
+        UpdateFitnessUI();
+
+        Debug.Log(" HillClimbing: tablero actualizado tras cambio de dificultad.");
     }
 }

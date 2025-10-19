@@ -125,29 +125,6 @@ public class SudokuGridManager : MonoBehaviour
             }
         }
     }
-
-    // ================== HILL CLIMBING (RESOLVER) ==================
-    public void SolveWithHillClimbing()
-    {
-        if (grid == null)
-        {
-            Debug.LogWarning("SolveWithHillClimbing: grid no inicializado.");
-            return;
-        }
-        int[,] currentBoard = GetCurrentBoard();
-        SudokuSolverHillClimbing solver = new SudokuSolverHillClimbing(
-            currentBoard,
-            (r, c, value) =>
-            {
-                grid[r, c].text = value.ToString();
-                Image bg = grid[r, c].GetComponent<Image>();
-                if (bg != null)
-                    bg.color = new Color(0.4f, 0.6f, 1f);
-            }
-        );
-        solver.Solve();
-    }
-
     // ================== MÉTODOS DE TABLERO ==================
     public void FillInitialBoard(int[,] board)
     {
