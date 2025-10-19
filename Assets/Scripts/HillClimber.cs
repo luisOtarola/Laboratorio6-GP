@@ -75,21 +75,29 @@ public class HillClimbing : MonoBehaviour
             int nr = n.Item1;
             int nc = n.Item2;
 
-            // ✅ Permitir swaps con cualquier vecino (vacío o no)
-            SwapCells(row, col, nr, nc);
-            float newFitness = CalculateFitness(board);
+            int originalValue = board[row, col];
+            int neighborValue = board[nr, nc];
 
-            if (newFitness < currentFitness)
+            // ✅ Solo hacer swap si ambos números pueden ir legalmente en la celda opuesta
+            bool canPlaceOriginal = (originalValue == 0) || gridManager.IsValidPlacement(board, originalValue, nr, nc);
+            bool canPlaceNeighbor = (neighborValue == 0) || gridManager.IsValidPlacement(board, neighborValue, row, col);
+
+            if (canPlaceOriginal && canPlaceNeighbor)
             {
-                improved = true;
-                Debug.Log($"✨ Mejora encontrada: ({row},{col}) ↔ ({nr},{nc}) | {currentFitness} → {newFitness}");
-                currentFitness = newFitness;
-                break;
-            }
-            else
-            {
-                // revertir si no mejora
                 SwapCells(row, col, nr, nc);
+                float newFitness = CalculateFitness(board);
+
+                if (newFitness < currentFitness)
+                {
+                    improved = true;
+                    Debug.Log($"✨ Mejora encontrada: ({row},{col}) ↔ ({nr},{nc}) | {currentFitness} → {newFitness}");
+                    currentFitness = newFitness;
+                    break;
+                }
+                else
+                {
+                    SwapCells(row, col, nr, nc); // revertir si no mejora
+                }
             }
         }
 
@@ -100,6 +108,99 @@ public class HillClimbing : MonoBehaviour
         gridManager.ClearGrid();
         gridManager.FillInitialBoard(board);
         UpdateFitnessUI();
+    }
+
+    public void StepHillClimbingReverse()
+    {
+        if (!initialized)
+        {
+            Debug.LogWarning("⚠️ HillClimbing aún no está inicializado.");
+            return;
+        }
+
+        if (candidateCells == null || candidateCells.Count == 0)
+        {
+            Debug.LogWarning("⚠️ No hay celdas disponibles para analizar.");
+            return;
+        }
+
+        if (currentIndex >= candidateCells.Count)
+        {
+            Debug.Log("✅ Hill Climbing completado: no quedan celdas para analizar.");
+            return;
+        }
+
+        var cell = candidateCells[currentIndex];
+        int row = cell.Item1;
+        int col = cell.Item2;
+
+        float currentFitness = CalculateFitness(board);
+        bool worsened = false;
+
+        var neighbors = GetNeighbors(row, col);
+        foreach (var n in neighbors)
+        {
+            int nr = n.Item1;
+            int nc = n.Item2;
+
+            int originalValue = board[row, col];
+            int neighborValue = board[nr, nc];
+
+            // ✅ Solo hacer swap si ambos números pueden ir legalmente en la celda opuesta
+            bool canPlaceOriginal = (originalValue == 0) || gridManager.IsValidPlacement(board, originalValue, nr, nc);
+            bool canPlaceNeighbor = (neighborValue == 0) || gridManager.IsValidPlacement(board, neighborValue, row, col);
+
+            if (canPlaceOriginal && canPlaceNeighbor)
+            {
+                SwapCells(row, col, nr, nc);
+                float newFitness = CalculateFitness(board);
+
+                if (newFitness > currentFitness)
+                {
+                    worsened = true;
+                    Debug.Log($"⚠️ Peor opción elegida: ({row},{col}) ↔ ({nr},{nc}) | {currentFitness} → {newFitness}");
+                    currentFitness = newFitness;
+                    break;
+                }
+                else
+                {
+                    SwapCells(row, col, nr, nc); // revertir si no empeora
+                }
+            }
+        }
+
+        if (!worsened)
+            currentIndex++;
+
+        gridManager.ClearGrid();
+        gridManager.FillInitialBoard(board);
+        UpdateFitnessUI();
+    }
+
+    // 🔹 Ejecuta todo el hill climbing (mejorando) en todas las celdas
+    public void FullHillClimbing()
+    {
+        if (!initialized) return;
+        Debug.Log("🧩 Iniciando Hill Climbing completo (mejorar)");
+        for (int i = 0; i < candidateCells.Count; i++)
+        {
+            currentIndex = i;
+            StepHillClimbing();
+        }
+        Debug.Log("✅ Hill Climbing completo finalizado.");
+    }
+
+    // 🔹 Ejecuta todo el hill climbing inverso (empeorando) en todas las celdas
+    public void FullHillClimbingReverse()
+    {
+        if (!initialized) return;
+        Debug.Log("🧩 Iniciando Hill Climbing completo inverso (empeorar)");
+        for (int i = 0; i < candidateCells.Count; i++)
+        {
+            currentIndex = i;
+            StepHillClimbingReverse();
+        }
+        Debug.Log("✅ Hill Climbing inverso completo finalizado.");
     }
 
     float CalculateFitness(int[,] board)
@@ -195,6 +296,7 @@ public class HillClimbing : MonoBehaviour
             Debug.LogWarning(" No se asignó un TMP_Text a HillClimbing.");
         }
     }
+
     public void RefreshBoardFromGrid()
     {
         board = gridManager.GetCurrentBoard();
